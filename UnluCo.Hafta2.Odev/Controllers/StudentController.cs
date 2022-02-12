@@ -1,41 +1,52 @@
 ﻿using AutoMapper;
 using FluentValidation;
-using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNet.OData;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Distributed;
+using System.Collections.Generic;
 using UnluCo.Hafta2.Odev.Application.StudentOperations.Commands.CreateStudent;
 using UnluCo.Hafta2.Odev.Application.StudentOperations.Commands.DeleteStudent;
 using UnluCo.Hafta2.Odev.Application.StudentOperations.Commands.UpdateStudent;
 using UnluCo.Hafta2.Odev.Application.StudentOperations.Queries.GetStudentDetail;
 using UnluCo.Hafta2.Odev.Application.StydentOperations.Queries.GetStudents;
+using UnluCo.Hafta2.Odev.Cache;
 using UnluCo.Hafta2.Odev.DBOperations;
 using static UnluCo.Hafta2.Odev.Application.StudentOperations.Commands.CreateStudent.CreateStudentCommand;
 using static UnluCo.Hafta2.Odev.Application.StudentOperations.Commands.UpdateStudent.UpdateStudentCommand;
 
 namespace UnluCo.Hafta2.Odev.Controllers
 {
-    [Authorize]
+    //[Authorize]
     [Route("[controller]s")]
     [ApiController]
     public class StudentController : ControllerBase
     {
         private readonly ISchoolDbContext _context;
         private readonly IMapper _mapper;
-
+        
         public StudentController(ISchoolDbContext context, IMapper mapper)
         {
             _context = context;
             _mapper = mapper;
-
         }
 
         [HttpGet]
+        [EnableQuery]
+        
         public IActionResult GetStudents()
         {
+            var cacheResult = MemoryCacheModel.Get("testId");
+            if (cacheResult is not null)
+                return Ok(cacheResult);
+
+            
+
             GetStudentsQuery query = new GetStudentsQuery(_context, _mapper);
-            var result = query.Handle();
-            return Ok(result);
+            MemoryCacheModel.Add("testId", query.Handle());
+            return Ok(query.Handle());
         }
         [HttpGet("{id}")]
+        [ResponseCache(Duration = 10000, Location = ResponseCacheLocation.Client, VaryByQueryKeys = new string[] { "id" })]
         public IActionResult GetById(int id)
         {
             StudentDetailViewModel result;

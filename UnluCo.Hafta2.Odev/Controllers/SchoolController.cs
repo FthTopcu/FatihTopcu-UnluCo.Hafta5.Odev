@@ -12,10 +12,14 @@ using UnluCo.Hafta2.Odev.Application.SchoolOperations.Queries.GetSchools;
 using UnluCo.Hafta2.Odev.Application.SchoolOperations.Queries.GetSchoolDetail;
 using Microsoft.AspNetCore.Authorization;
 using UnluCo.Hafta2.Odev.Filters;
+using Microsoft.Extensions.Caching.Distributed;
+using Newtonsoft.Json;
+using System.Collections.Generic;
+using System;
 
 namespace UnluCo.Hafta2.Odev.Controllers
 {
-    [Authorize]
+    //[Authorize]
     [ApiController]
     [Route("[controller]s")]
     
@@ -23,20 +27,36 @@ namespace UnluCo.Hafta2.Odev.Controllers
     {
         private readonly ISchoolDbContext _context;
         private readonly IMapper _mapper;
-        public SchoolController(ISchoolDbContext context, IMapper mapper)
+        private readonly IDistributedCache _distributedCache;
+        public SchoolController(ISchoolDbContext context, IMapper mapper, IDistributedCache distributedCache)
         {
             _context = context;
             _mapper = mapper;
+            _distributedCache = distributedCache;
         }
 
         [HttpGet]
         public IActionResult GetSchools()
         {
-
-            GetSchoolsQuery query = new GetSchoolsQuery(_context, _mapper);
-            var result = query.Handle();
-            return Ok(result);
-
+            var cachedData = _distributedCache.GetString("test");
+            
+            if(string.IsNullOrEmpty(cachedData))
+            {
+                GetSchoolsQuery query = new GetSchoolsQuery(_context, _mapper);
+                var result = query.Handle();
+               
+                var cacheOptions = new DistributedCacheEntryOptions()
+                {
+                    AbsoluteExpiration = DateTime.Now.AddMinutes(10)
+                };
+                _distributedCache.SetString("test", JsonConvert.SerializeObject(result), cacheOptions);
+                return Ok(result);
+            }
+            else
+            {
+                return Ok(JsonConvert.DeserializeObject<List<SchoolsViewModel>>(cachedData));
+            }
+            
         }
         [HttpGet("desc")]
         public IActionResult GetSchoolsDesc()

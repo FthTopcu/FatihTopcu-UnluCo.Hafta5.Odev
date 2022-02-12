@@ -13,6 +13,9 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using UnluCo.Hafta2.Odev.Filters;
+using Microsoft.AspNet.OData.Extensions;
+using Microsoft.AspNet.OData.Builder;
+using UnluCo.Hafta2.Odev.Entities;
 
 namespace UnluCo.Hafta2.Odev
 {
@@ -28,8 +31,9 @@ namespace UnluCo.Hafta2.Odev
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-
-            services.AddControllers(config => { config.Filters.Add(new ResponseHeaderFilter()); });
+            
+            services.AddControllers(config => { config.Filters.Add(new ResponseHeaderFilter()); }).AddNewtonsoftJson();
+            services.AddOData();
             services.AddSwaggerGen(c =>
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "UnluCo.Hafta2.Odev", Version = "v1" });
@@ -57,6 +61,12 @@ namespace UnluCo.Hafta2.Odev
             services.AddAutoMapper(Assembly.GetExecutingAssembly());
 
             services.AddSingleton<ILoggerService, ConsoleLogger>();
+            services.AddMemoryCache();
+            services.AddResponseCaching();
+            services.AddDistributedRedisCache(opt =>
+            {
+                opt.Configuration = "localhost:6379";
+            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -78,10 +88,18 @@ namespace UnluCo.Hafta2.Odev
             app.UseAuthorization();
 
             app.UseCustomExceptionMiddle();
+            app.UseResponseCaching();
+            var builder = new ODataConventionModelBuilder();
+            builder.EntitySet<Student>("Student");
+
 
             app.UseEndpoints(endpoints =>
             {
+                endpoints.EnableDependencyInjection();
+                endpoints.MapODataRoute("odata", "odata", builder.GetEdmModel());
+                endpoints.Select().Filter().Expand().OrderBy();
                 endpoints.MapControllers();
+                
             });
         }
     }
